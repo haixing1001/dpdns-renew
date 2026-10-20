@@ -63,15 +63,29 @@ function fmtTable(headers, rows) {
   return [line(headers), sep, ...rows.map((r) => line(r))].join('\n');
 }
 
-/** 计算到期日距今天的天数;支持 YYYY-MM-DD 或 ISO 时间戳 */
-function daysUntil(expiry) {
+/** 解析到期日:支持 YYYY-MM-DD、YYYYMMDD、ISO 时间戳;失败返回 null */
+function parseDate(expiry) {
   if (!expiry) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(expiry).trim());
-  if (!m) return null;
-  const exp = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const s = String(expiry).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s) || /^(\d{4})(\d{2})(\d{2})/.exec(s);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+/** 计算到期日距今天的天数;无法解析返回 null */
+function daysUntil(expiry) {
+  const p = parseDate(expiry);
+  if (!p) return null;
+  const exp = Date.UTC(p[0], p[1] - 1, p[2]);
   const now = new Date();
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   return Math.round((exp - today) / 86400000);
+}
+
+/** 格式化到期时间为 YYYY-MM-DD;无法解析则原样截断 */
+function fmtDate(expiry) {
+  const p = parseDate(expiry);
+  if (!p) return expiry ? String(expiry).slice(0, 10) : '永久';
+  return `${p[0]}-${String(p[1]).padStart(2, '0')}-${String(p[2]).padStart(2, '0')}`;
 }
 
 const totalDomains = accounts.reduce((n, a) => n + a.domains.length, 0);
@@ -84,7 +98,7 @@ for (const acc of accounts) {
     const expiry = d.expires_at ?? d.expiry_date ?? '永久';
     const days = daysUntil(d.expires_at ?? d.expiry_date);
     const status = days === null ? '永久有效' : days <= THRESHOLD_DAYS ? '窗口内' : '窗口外';
-    rows.push([...(multi ? [acc.label] : []), name, status, String(expiry).slice(0, 10), days === null ? '永久' : `${days}天`, d.auto_renew ? '是' : '否']);
+    rows.push([...(multi ? [acc.label] : []), name, status, fmtDate(expiry), days === null ? '永久' : `${days}天`, d.auto_renew ? '是' : '否']);
   }
 }
 console.log(fmtTable([...(multi ? ['账号'] : []), '域名', '状态', '到期时间', '剩余天数', '自动续'], rows));
