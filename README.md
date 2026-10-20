@@ -15,26 +15,27 @@
 
 - ⏰ **每周自动检查** — GitHub Actions 定时任务(默认 UTC 03:17),也可手动触发
 - 🎁 **免费续期** — 到期前 **120 天**进入续期窗口,自动"申请免费续期 **+1 年**",不花积分
-- 🔑 **只需一个 API Key** — 其余参数全部内置默认,开箱即用
-- 📊 **表格化输出** — 域名/状态/到期时间/剩余天数一目了然(步骤日志 + 运行页 Summary)
+- 🔑 **支持多账号** — `DIGITALPLAT_API_KEY` 一行一个 Key,自动合并检查并按各账号自己的 Key 续期
+- 🛡️ **账号隔离** — 某个 Key 失效不影响其他账号继续续期,汇总里单独标出异常账号
+- 📊 **表格化输出** — 账号/域名/状态/到期时间/剩余天数一目了然(步骤日志 + 运行页 Summary)
 - 📧 **失败自动通知** — 任一步失败,GitHub Actions 发邮件提醒
-- 🌐 **支持多域名** — 自动遍历账号下所有 DigitalPlat 域名
+- 🌐 **支持多域名** — 自动遍历每个账号下所有 DigitalPlat 域名
 
 ## 📊 运行效果
 
 每次运行后,在 Actions 运行页的 **Summary** 标签即可直接查看(无需展开日志):
 
-> **📋 DigitalPlat 域名每日检查 (2026-09-17 08:30:50)**
+> **📋 DigitalPlat 域名检查 (2026-09-17 08:30:50)**
 >
-> 共 3 个域名 · 续期窗口: 到期前 120 天 · 每次续 1 年
+> 共 2 个账号 · 3 个域名 · 续期窗口: 到期前 120 天 · 每次续 1 年
 >
-> | 域名 | 状态 | 到期时间 | 剩余天数 | 自动续 |
-> | --- | --- | --- | --- | --- |
-> | example.dpdns.org | 窗口外 | 2027-02-23 | 159天 | 否 |
-> | blog.dpdns.org | 窗口外 | 2027-05-29 | 254天 | 否 |
-> | api.dpdns.org | 窗口内 | 2026-12-01 | 75天 | 否 |
+> | 账号 | 域名 | 状态 | 到期时间 | 剩余天数 | 自动续 |
+> | --- | --- | --- | --- | --- | --- |
+> | #1 | example.dpdns.org | 窗口外 | 2027-02-23 | 159天 | 否 |
+> | #1 | api.dpdns.org | 窗口内 | 2026-12-01 | 75天 | 否 |
+> | #2 | blog.dpdns.org | 窗口外 | 2027-05-29 | 254天 | 否 |
 >
-> **自动续期明细** — ✅ api.dpdns.org 续期成功 +1 年(示例)
+> **自动续期明细** — ✅ #1 api.dpdns.org 续期成功 +1 年(示例)
 
 - `窗口外` = 剩余天数 > 120,暂无需续期
 - `窗口内` = 剩余天数 ≤ 120,将自动免费续期
@@ -46,10 +47,10 @@
 GitHub Actions (cron 每周 03:17 UTC)
         │
         ▼
-GET /api/v1/domains ────► 解析每个域名: 到期时间(expires_at)
-        │                     状态(slot_type / domain_kind)
+按账号逐个 GET /api/v1/domains ──► 解析每个域名: 到期时间(expires_at)
+        │                           状态(slot_type / domain_kind)
         ▼
-生成检查表格: 状态 = 窗口外 / 窗口内 / 永久有效
+生成检查表格: 账号 / 状态 = 窗口外 / 窗口内 / 永久有效
         │
         ▼
 有域名进入"窗口内"(≤120天)?
@@ -59,7 +60,7 @@ GET /api/v1/domains ────► 解析每个域名: 到期时间(expires_at)
     │         │
     ▼         ▼
  无事发生   POST /api/v1/domains/{domain}/renew
-            (免费域名 payment=free,免费续 +1 年)
+            (用该域名所属账号的 Key;免费域名 payment=free)
         │
         ▼
   把结果写入 Job Summary + 步骤日志(失败则退出码 1 触发邮件)
@@ -81,7 +82,16 @@ GET /api/v1/domains ────► 解析每个域名: 到期时间(expires_at)
 
 | Name | Value |
 | --- | --- |
-| `DIGITALPLAT_API_KEY` | `dp_live_xxxxxxxxxxxxxxx` |
+| `DIGITALPLAT_API_KEY` | 单个账号:`dp_live_xxxxxxxxxxxxxxx`<br>多个账号:**一行一个 Key**(多行文本) |
+
+> 多账号示例(Secret 里直接粘贴多行,每行一个账号的 Key):
+>
+> ```
+> dp_live_aaaaaaaaaaaaaaa
+> dp_live_bbbbbbbbbbbbbbb
+> ```
+>
+> 空行会被忽略;重复 Key 只处理一次;也兼容英文逗号分隔。
 
 ### 第 3 步:手动验证一次
 
@@ -109,8 +119,11 @@ GET /api/v1/domains ────► 解析每个域名: 到期时间(expires_at)
 ## 🖥️ 本地运行
 
 ```powershell
-# PowerShell
+# PowerShell(单账号)
 $env:DIGITALPLAT_API_KEY = "dp_live_xxx"
+
+# PowerShell(多账号:反引号 `n 表示换行,一行一个 Key)
+$env:DIGITALPLAT_API_KEY = "dp_live_aaa`ndp_live_bbb"
 
 node scripts/list-domains.mjs            # 只看检查表格
 node scripts/renew.mjs --dry-run         # 预览:哪些会进入续期窗口(不发续期请求)
@@ -120,7 +133,8 @@ node scripts/renew.mjs --json            # 附带打印接口完整原始响应(
 
 ```bash
 # Linux / macOS
-export DIGITALPLAT_API_KEY="dp_live_xxx"
+export DIGITALPLAT_API_KEY="dp_live_xxx"                   # 单账号
+export DIGITALPLAT_API_KEY=$'dp_live_aaa\ndp_live_bbb'     # 多账号:一行一个
 node scripts/renew.mjs
 ```
 
@@ -131,7 +145,8 @@ node scripts/renew.mjs
 ├── .github/workflows/renew.yml   # GitHub Actions 定时任务(每周 03:17 UTC)
 ├── scripts/
 │   ├── renew.mjs                 # 主脚本:检查 + 自动续期(零依赖,Node 18+)
-│   └── list-domains.mjs          # 辅助:只打印域名检查表格
+│   ├── list-domains.mjs          # 辅助:只打印域名检查表格
+│   └── keys.mjs                  # 共用:解析多账号 API Key(一行一个)
 ├── .env.example                  # 本地运行示例
 └── README.md
 ```
@@ -149,6 +164,9 @@ node scripts/renew.mjs
 
 **Q:账户里多个域名都能自动续吗?**
 能。脚本遍历账号下**所有**域名,每个到期前 120 天都会自动续期。
+
+**Q:有多个 DigitalPlat 账号怎么办?**
+把每个账号的 Key 各占一行写进同一个 `DIGITALPLAT_API_KEY`(Actions Secret 支持多行文本),脚本会逐账号拉取域名,并用**该域名所属账号的 Key** 续期。某个 Key 失效只会把该账号标记为异常,其他账号照常续期(整体退出码仍为 1,便于邮件通知)。
 
 **Q:运行有 1 个 warning 正常吗?**
 正常,是 GitHub 提示 `actions/checkout@v4` 基于的 Node 20 即将弃用,不影响运行。
