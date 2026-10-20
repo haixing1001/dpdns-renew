@@ -1,67 +1,11 @@
 #!/usr/bin/env node
 // 辅助工具:打印域名检查表格(不修改任何数据)。
 // 用法:  DIGITALPLAT_API_KEY=dp_live_xxx node scripts/list-domains.mjs
-//       多账号: DIGITALPLAT_API_KEY 一行一个 Key(也兼容英文逗号分隔)
+//        DNSHE_API_KEY=cfsd_xxx DNSHE_API_SECRET=yyy node scripts/list-domains.mjs
 // 加 --json 参数可同时打印接口完整原始响应(排查用)。
-import { parseApiKeys } from './keys.mjs';
+import { buildAccounts } from './accounts.mjs';
 
-const BASE_URL = process.env.DIGITALPLAT_BASE_URL || 'https://domain-api.digitalplat.org/api/v1';
 const PRINT_JSON = process.argv.includes('--json');
-const THRESHOLD_DAYS = Number.parseInt(process.env.RENEW_THRESHOLD_DAYS || '120', 10);
-
-const { keys: API_KEYS, invalid, duplicates } = parseApiKeys(process.env.DIGITALPLAT_API_KEY || '');
-if (invalid.length > 0) {
-  for (const { index, reason } of invalid) {
-    console.error(`DIGITALPLAT_API_KEY 第 ${index} 个条目无效: ${reason}`);
-  }
-  process.exit(2);
-}
-if (API_KEYS.length === 0) {
-  console.error('缺少 DIGITALPLAT_API_KEY(应以 dp_live_ 或 dp_test_ 开头)');
-  process.exit(2);
-}
-for (const index of duplicates) {
-  console.warn(`DIGITALPLAT_API_KEY 第 ${index} 个条目与前面的 Key 重复,已忽略`);
-}
-const multi = API_KEYS.length > 1;
-
-/** 列出一个账号下的所有域名(兼容 data 是数组,或 data 里再包一层 domains/items) */
-async function listDomains(apiKey) {
-  const r = await fetch(`${BASE_URL}/domains`, {
-    headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
-    signal: AbortSignal.timeout(30_000),
-  });
-  const text = await r.text();
-  if (!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0, 400)}`);
-  const json = JSON.parse(text);
-  if (PRINT_JSON) console.log('=== 完整原始响应 ===\n' + JSON.stringify(json, null, 2) + '\n');
-  if (Array.isArray(json?.data)) return json.data;
-  if (Array.isArray(json?.data?.domains)) return json.data.domains;
-  if (Array.isArray(json?.data?.items)) return json.data.items;
-  return [];
-}
-
-const accounts = [];
-let failures = 0;
-for (let i = 0; i < API_KEYS.length; i += 1) {
-  const label = `#${i + 1}`;
-  try {
-    accounts.push({ label, domains: await listDomains(API_KEYS[i]) });
-  } catch (e) {
-    failures += 1;
-    accounts.push({ label, domains: [], error: e.message });
-    console.error(`${label} 获取域名列表失败: ${e.message}`);
-  }
-}
-
-function fmtTable(headers, rows) {
-  const widths = headers.map((h, i) =>
-    Math.max(String(h).length, ...rows.map((r) => String(r[i] ?? '').length))
-  );
-  const line = (cells) => '  ' + cells.map((c, i) => String(c ?? '').padEnd(widths[i])).join('  ');
-  const sep = '  ' + widths.map((w) => '-'.repeat(w)).join('  ');
-  return [line(headers), sep, ...rows.map((r) => line(r))].join('\n');
-}
 
 /** 解析到期日:支持 YYYY-MM-DD、YYYYMMDD、ISO 时间戳;失败返回 null */
 function parseDate(expiry) {
@@ -88,20 +32,72 @@ function fmtDate(expiry) {
   return `${p[0]}-${String(p[1]).padStart(2, '0')}-${String(p[2]).padStart(2, '0')}`;
 }
 
-const totalDomains = accounts.reduce((n, a) => n + a.domains.length, 0);
-console.log(`共 ${totalDomains} 个域名${multi ? `(${API_KEYS.length} 个账号)` : ''}:\n`);
-// DigitalPlat 实际字段: domain / expires_at / slot_type / auto_renew
-const rows = [];
+function fmtTable(headers, rows) {
+  const widths = headers.map((h, i) =>
+    Math.max(String(h).length, ...rows.map((r) => String(r[i] ?? '').length))
+  );
+  const line = (cells) => '  ' + cells.map((c, i) => String(c ?? '').padEnd(widths[i])).join('  ');
+  const sep = '  ' + widths.map((w) => '-'.repeat(w)).join('  ');
+  return [line(headers), sep, ...rows.map((r) => line(r))].join('\n');
+}
+
+const { accounts, errors, warnings } = buildAccounts();
+
+if (errors.length > 0) {
+  for (const e of errors) console.error(e);
+  console.error('请检查配置:DigitalPlat 一行一个 Key;DNSHE 的 API Key 与 API Secret 一行一组、按行对应');
+  process.exit(2);
+}
+if (accounts.length === 0) {
+  console.error('未配置任何平台的 API 凭据(DIGITALPLAT_API_KEY 或 DNSHE_API_KEY + DNSHE_API_SECRET)');
+  process.exit(2);
+}
+for (const w of warnings) console.warn(w);
+
+const providers = [...new Set(accounts.map((a) => a.provider))];
+const showProvider = providers.length > 1;
+const showAccount = accounts.length > 1;
+
+const listing = [];
+let failures = 0;
 for (const acc of accounts) {
-  for (const d of acc.domains) {
-    const name = d.domain ?? d.name ?? d.hostname ?? String(d.id ?? '?');
-    const expiry = d.expires_at ?? d.expiry_date ?? '永久';
-    const days = daysUntil(d.expires_at ?? d.expiry_date);
-    const status = days === null ? '永久有效' : days <= THRESHOLD_DAYS ? '窗口内' : '窗口外';
-    rows.push([...(multi ? [acc.label] : []), name, status, fmtDate(expiry), days === null ? '永久' : `${days}天`, d.auto_renew ? '是' : '否']);
+  const tag = [showProvider ? acc.provider : '', showAccount ? acc.label : ''].filter(Boolean).join(' ');
+  try {
+    const domains = await acc.list();
+    listing.push({ acc, domains });
+    if (PRINT_JSON) console.log(`=== ${tag || acc.provider} 完整原始响应 ===\n` + JSON.stringify(domains.map((d) => d.raw ?? d), null, 2) + '\n');
+  } catch (e) {
+    failures += 1;
+    listing.push({ acc, domains: [], error: e.message });
+    console.error(`${tag || acc.provider} 获取域名列表失败: ${e.message}`);
   }
 }
-console.log(fmtTable([...(multi ? ['账号'] : []), '域名', '状态', '到期时间', '剩余天数', '自动续'], rows));
+
+const totalDomains = listing.reduce((n, a) => n + a.domains.length, 0);
+const meta = [showProvider ? `${providers.length} 个平台` : '', showAccount ? `${accounts.length} 个账号` : ''].filter(Boolean).join(', ');
+console.log(`共 ${totalDomains} 个域名${meta ? `(${meta})` : ''}:\n`);
+
+const rows = [];
+for (const { acc, domains } of listing) {
+  for (const d of domains) {
+    const days = d.neverExpires ? null : daysUntil(d.expiry);
+    const status = d.neverExpires ? '永久有效' : days === null ? '未知' : days <= acc.threshold ? '窗口内' : '窗口外';
+    rows.push([
+      ...(showProvider ? [acc.provider] : []),
+      ...(showAccount ? [acc.label] : []),
+      d.name,
+      status,
+      fmtDate(d.expiry),
+      days === null ? '永久' : `${days}天`,
+      d.autoRenew,
+    ]);
+  }
+}
+console.log(fmtTable([
+  ...(showProvider ? ['平台'] : []),
+  ...(showAccount ? ['账号'] : []),
+  '域名', '状态', '到期时间', '剩余天数', '自动续',
+], rows));
 console.log('');
-console.log('说明: 状态=窗口内(到期前120天内,将自动申请免费续费) / 窗口外(暂不需续费) / 永久有效(接口无到期时间)');
+console.log('说明: 状态=窗口内(进入续期窗口,将自动免费续期) / 窗口外(暂不需续费) / 永久有效(接口无到期时间)');
 if (failures > 0) process.exit(1);

@@ -1,4 +1,4 @@
-name: digitalplat-renew
+name: domain-renew
 
 on:
   schedule:
@@ -24,12 +24,17 @@ jobs:
         env:
           # 一个 Key 一行;多账号直接把 Secret 存成多行文本(也兼容英文逗号分隔)
           DIGITALPLAT_API_KEY: ${{ secrets.DIGITALPLAT_API_KEY }}
+          # DNSHE:两个变量都一行一个,按行一一对应(未配置该平台时留空即可)
+          DNSHE_API_KEY: ${{ secrets.DNSHE_API_KEY }}
+          DNSHE_API_SECRET: ${{ secrets.DNSHE_API_SECRET }}
 
-      - name: 自动续期到期域名(内置规则:到期前120天内、免费域名免费续一年)
+      - name: 自动续期到期域名(内置规则:进入续期窗口后免费续一年)
         run: node scripts/renew.mjs
         env:
           # 多账号:同一份多行 Secret,脚本按账号逐个检查并按各自 Key 续期
           DIGITALPLAT_API_KEY: ${{ secrets.DIGITALPLAT_API_KEY }}
+          DNSHE_API_KEY: ${{ secrets.DNSHE_API_KEY }}
+          DNSHE_API_SECRET: ${{ secrets.DNSHE_API_SECRET }}
           # 以下全部可选,不设置即用脚本内置默认(见 scripts/renew.mjs 顶部说明):
           # RENEW_THRESHOLD_DAYS: '120'
           # RENEW_YEARS: '1'
