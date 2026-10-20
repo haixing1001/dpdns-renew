@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 辅助工具:打印域名检查表格(不修改任何数据)。
 // 用法:  DIGITALPLAT_API_KEY=dp_live_xxx node scripts/list-domains.mjs
-//        DNSHE_API_KEY=cfsd_xxx DNSHE_API_SECRET=yyy node scripts/list-domains.mjs
+//        DNSHE_API_KEY="cfsd_xxx API-Secret" node scripts/list-domains.mjs(多账号一行一个)
 // 加 --json 参数可同时打印接口完整原始响应(排查用)。
 import { buildAccounts } from './accounts.mjs';
 
@@ -45,11 +45,11 @@ const { accounts, errors, warnings } = buildAccounts();
 
 if (errors.length > 0) {
   for (const e of errors) console.error(e);
-  console.error('请检查配置:DigitalPlat 一行一个 Key;DNSHE 的 API Key 与 API Secret 一行一组、按行对应');
+  console.error('请检查配置:DigitalPlat 一行一个 Key;DNSHE 一行一个账号,写成 "cfsd_xxx API-Secret"');
   process.exit(2);
 }
 if (accounts.length === 0) {
-  console.error('未配置任何平台的 API 凭据(DIGITALPLAT_API_KEY 或 DNSHE_API_KEY + DNSHE_API_SECRET)');
+  console.error('未配置任何平台的 API 凭据(DIGITALPLAT_API_KEY 或 DNSHE_API_KEY="cfsd_xxx API-Secret")');
   process.exit(2);
 }
 for (const w of warnings) console.warn(w);

@@ -3,13 +3,12 @@
 //
 // 配置(至少配置一个平台,未配置的平台会被跳过):
 //   DigitalPlat: DIGITALPLAT_API_KEY,一行一个 Key(每个账号一行;也兼容英文逗号分隔)
-//   DNSHE:       DNSHE_API_KEY + DNSHE_API_SECRET,一行一组、按行一一对应
+//   DNSHE:       DNSHE_API_KEY,一行一个账号,写成 "cfsd_xxx API-Secret"(空格/逗号/冒号分隔均可)
 //
 // 用法示例:
 //   单平台: DIGITALPLAT_API_KEY="dp_live_xxx" node scripts/renew.mjs
 //   双平台: export DIGITALPLAT_API_KEY=$'dp_live_aaa\ndp_live_bbb'
-//           export DNSHE_API_KEY="cfsd_xxx"
-//           export DNSHE_API_SECRET="yyyy"
+//           export DNSHE_API_KEY="cfsd_xxx yyyyyyyy"
 //           node scripts/renew.mjs
 //
 // 内置默认规则(可用环境变量覆盖):
@@ -106,13 +105,13 @@ async function main() {
 
   if (errors.length > 0) {
     for (const e of errors) console.error(`[renew] ${e}`);
-    console.error('[renew] 请检查配置:DigitalPlat 一行一个 Key;DNSHE 的 API Key 与 API Secret 一行一组、按行对应');
+    console.error('[renew] 请检查配置:DigitalPlat 一行一个 Key;DNSHE 一行一个账号,写成 "cfsd_xxx API-Secret"');
     process.exit(2);
   }
   if (accounts.length === 0) {
     console.error('[renew] 未配置任何平台的 API 凭据');
     console.error('       DigitalPlat: DIGITALPLAT_API_KEY="dp_live_xxx"(多账号一行一个)');
-    console.error('       DNSHE:       DNSHE_API_KEY="cfsd_xxx" 且 DNSHE_API_SECRET="xxx"');
+    console.error('       DNSHE:       DNSHE_API_KEY="cfsd_xxx API-Secret"(多账号一行一个)');
     process.exit(2);
   }
   for (const w of warnings) console.warn(`[renew] ${w}`);

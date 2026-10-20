@@ -15,7 +15,7 @@
 
 - ⏰ **每周自动检查** — GitHub Actions 定时任务(默认 UTC 03:17),也可手动触发
 - 🎁 **免费续期** — 进入各平台官方续期窗口后自动续期一年,不花积分/余额
-- 🔑 **多平台多账号** — DigitalPlat 一行一个 API Key;DNSHE 一行一组 Key+Secret,自动合并检查
+- 🔑 **多平台多账号** — DigitalPlat 一行一个 API Key;DNSHE 一行一个账号(Key + Secret),自动合并检查
 - 🛡️ **账号隔离** — 某个凭据失效不影响其他账号继续续期,汇总里单独标出异常账号
 - 📊 **表格化输出** — 平台/账号/域名/状态/到期时间/剩余天数一目了然(步骤日志 + 运行页 Summary)
 - 📧 **失败自动通知** — 任一步失败,GitHub Actions 发邮件提醒
@@ -95,17 +95,25 @@ GitHub Actions (cron 每周 03:17 UTC)
 | Name | Value |
 | --- | --- |
 | `DIGITALPLAT_API_KEY` | 单个账号:`dp_live_xxx`<br>多个账号:**一行一个 Key**(多行文本) |
-| `DNSHE_API_KEY` | 单个账号:`cfsd_xxx`<br>多个账号:**一行一个**(多行文本) |
-| `DNSHE_API_SECRET` | 与 `DNSHE_API_KEY` **逐行对应**的 Secret |
+| `DNSHE_API_KEY` | **一行一个账号**,每行写成 `API-Key API-Secret`(空格/逗号/冒号分隔)<br>例:`cfsd_xxx yyyy…` |
 
-> 多账号示例(DigitalPlat):
+> 多账号示例:
+>
+> DigitalPlat(`DIGITALPLAT_API_KEY`):
 >
 > ```
 > dp_live_aaaaaaaaaaaaaaa
 > dp_live_bbbbbbbbbbbbbbb
 > ```
 >
-> DNSHE 多账号时两个变量都写成多行,第 N 行 Key 配第 N 行 Secret。空行会被忽略;重复条目只处理一次。
+> DNSHE(`DNSHE_API_KEY`,Key 和 Secret 在同一行):
+>
+> ```
+> cfsd_aaaaaaaaaaaaaaaaa secretAaaaaaaaaaaaaaaaaaaa
+> cfsd_bbbbbbbbbbbbbbbbb secretBbbbbbbbbbbbbbbbbbbb
+> ```
+>
+> 空行会被忽略;重复条目只处理一次。
 
 ### 第 3 步:手动验证一次
 
@@ -141,9 +149,8 @@ $env:DIGITALPLAT_API_KEY = "dp_live_xxx"
 # PowerShell(多账号:反引号 `n 表示换行,一行一个 Key)
 $env:DIGITALPLAT_API_KEY = "dp_live_aaa`ndp_live_bbb"
 
-# DNSHE(单个账号)
-$env:DNSHE_API_KEY = "cfsd_xxx"
-$env:DNSHE_API_SECRET = "yyyy"
+# DNSHE(一行一个账号:API-Key 空格 API-Secret)
+$env:DNSHE_API_KEY = "cfsd_xxx yyyy"
 
 node scripts/list-domains.mjs            # 只看检查表格
 node scripts/renew.mjs --dry-run         # 预览:哪些会进入续期窗口(不发续期请求)
@@ -155,7 +162,7 @@ node scripts/renew.mjs --json            # 附带打印接口完整原始响应(
 # Linux / macOS
 export DIGITALPLAT_API_KEY="dp_live_xxx"                   # 单账号
 export DIGITALPLAT_API_KEY=$'dp_live_aaa\ndp_live_bbb'     # 多账号:一行一个
-export DNSHE_API_KEY="cfsd_xxx" DNSHE_API_SECRET="yyyy"    # DNSHE
+export DNSHE_API_KEY="cfsd_xxx yyyy"                       # DNSHE(一行一个账号)
 node scripts/renew.mjs
 ```
 
@@ -187,7 +194,7 @@ node scripts/renew.mjs
 接口未返回到期时间(DNSHE 还会返回 `never_expires=1`)时会显示"永久有效"。
 
 **Q:有多个账号怎么办?**
-DigitalPlat 把每个 Key 各占一行写进 `DIGITALPLAT_API_KEY`;DNSHE 把 Key 和 Secret 都写成多行、按行对应。脚本逐账号拉取域名,并用**该域名所属账号的凭据**续期。某个凭据失效只会把该账号标记为异常,其他账号照常续期(整体退出码仍为 1,便于邮件通知)。
+DigitalPlat 把每个 Key 各占一行写进 `DIGITALPLAT_API_KEY`;DNSHE 把每个账号写成一行 `cfsd_xxx API-Secret` 放进 `DNSHE_API_KEY`。脚本逐账号拉取域名,并用**该域名所属账号的凭据**续期。某个凭据失效只会把该账号标记为异常,其他账号照常续期(整体退出码仍为 1,便于邮件通知)。
 
 **Q:两个平台都必须配置吗?**
 不必。只配置一个平台就只处理那一个;两个都配就一起处理,表格里会多出"平台"列。

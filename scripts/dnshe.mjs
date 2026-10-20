@@ -4,29 +4,51 @@
 // 认证: 请求头 X-API-Key + X-API-Secret
 // 续期窗口: 到期前 180 天开启,免费(charged_amount=0)
 //
-// 多账号: DNSHE_API_KEY 与 DNSHE_API_SECRET 都支持一行一个,按行一一对应
+// 多账号: DNSHE_API_KEY 一行一个账号,写成 "cfsd_xxx API-Secret"(空格/逗号/冒号/竖线分隔)
+//         兼容旧用法:DNSHE_API_SECRET 单独给,按行与 DNSHE_API_KEY 配对
 const BASE_URL = process.env.DNSHE_BASE_URL || 'https://api005.dnshe.com/index.php';
 const PAGE_SIZE = Number.parseInt(process.env.DNSHE_PAGE_SIZE || '200', 10);
 
-/** 解析多账号凭据:Key 与 Secret 按行配对(一行一个账号);返回 { pairs, invalid, duplicates } */
-export function parseDnsheCreds(rawKey, rawSecret) {
+/** 把一行拆成 [key, secret]:支持空格/制表符/逗号/冒号/竖线分隔 */
+function splitPair(line) {
+  const m = /^(\S+)[\s,|:]+(\S+)$/.exec(line);
+  return m ? [m[1], m[2]] : null;
+}
+
+/** 解析多账号凭据:一行一个账号,写成 "cfsd_xxx API-Secret"(也支持旧的 Key/Secret 两变量按行配对)
+ *  返回 { pairs, invalid, duplicates } */
+export function parseDnsheCreds(rawKey, rawSecret = '') {
   const split = (s) => String(s ?? '').split(/[\r\n]+/).map((v) => v.trim()).filter(Boolean);
-  const keys = split(rawKey);
-  const secrets = split(rawSecret);
+  const keyLines = split(rawKey);
+  const secretLines = split(rawSecret);
+  const pairedMode = secretLines.length > 0;
   const pairs = [];
   const invalid = [];
   const duplicates = [];
   const seen = new Set();
-  const total = Math.max(keys.length, secrets.length);
+  const total = pairedMode ? Math.max(keyLines.length, secretLines.length) : keyLines.length;
 
   for (let i = 0; i < total; i += 1) {
     const index = i + 1;
-    const key = keys[i];
-    const secret = secrets[i];
-    if (!key || !secret) {
-      invalid.push({ index, reason: 'API Key 与 API Secret 行数不一致(需要一行一组、按行对应)' });
-      continue;
+    let key;
+    let secret;
+
+    if (pairedMode) {
+      key = keyLines[i];
+      secret = secretLines[i];
+      if (!key || !secret) {
+        invalid.push({ index, reason: 'API Key 与 API Secret 行数不一致(旧用法下两行必须一一对应)' });
+        continue;
+      }
+    } else {
+      const pair = splitPair(keyLines[i] || '');
+      if (!pair) {
+        invalid.push({ index, reason: '缺少 API Secret(请写成 "cfsd_xxx API-Secret",一行一个账号)' });
+        continue;
+      }
+      [key, secret] = pair;
     }
+
     if (!key.startsWith('cfsd_')) {
       invalid.push({ index, reason: 'API Key 不以 cfsd_ 开头' });
       continue;

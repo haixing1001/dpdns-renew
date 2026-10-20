@@ -57,13 +57,13 @@ export function buildAccounts() {
     });
   }
 
-  // ---------- DNSHE:一组 Key+Secret 一个账号 ----------
+  // ---------- DNSHE:一行一个账号,写成 "cfsd_xxx API-Secret" ----------
   const dnsheKeyRaw = process.env.DNSHE_API_KEY || '';
   const dnsheSecretRaw = process.env.DNSHE_API_SECRET || '';
   if (dnsheKeyRaw.trim() || dnsheSecretRaw.trim()) {
     const { pairs, invalid, duplicates } = dnshe.parseDnsheCreds(dnsheKeyRaw, dnsheSecretRaw);
     for (const { index, reason } of invalid) {
-      errors.push(`DNSHE_API_KEY / DNSHE_API_SECRET 第 ${index} 组无效: ${reason}`);
+      errors.push(`DNSHE_API_KEY 第 ${index} 行无效: ${reason}`);
     }
     for (const index of duplicates) {
       warnings.push(`DNSHE 第 ${index} 组凭据与前面的重复,已忽略`);
