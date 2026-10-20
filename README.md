@@ -95,7 +95,7 @@ GitHub Actions (cron 每周 03:17 UTC)
 | Name | Value |
 | --- | --- |
 | `DIGITALPLAT_API_KEY` | 单个账号:`dp_live_xxx`<br>多个账号:**一行一个 Key**(多行文本) |
-| `DNSHE_API_KEY` | **一行一个账号**,每行写成 `API-Key API-Secret`(空格/逗号/冒号分隔)<br>例:`cfsd_xxx yyyy…` |
+| `DNSHE_API_KEY` | **一行一个账号**,每行写成 `API-Key----API-Secret`(空格/逗号/冒号也兼容)<br>例:`cfsd_xxx----yyyy…` |
 
 > 多账号示例:
 >
@@ -106,11 +106,11 @@ GitHub Actions (cron 每周 03:17 UTC)
 > dp_live_bbbbbbbbbbbbbbb
 > ```
 >
-> DNSHE(`DNSHE_API_KEY`,Key 和 Secret 在同一行):
+> DNSHE(`DNSHE_API_KEY`,Key 和 Secret 在同一行、用 `----` 连接):
 >
 > ```
-> cfsd_aaaaaaaaaaaaaaaaa secretAaaaaaaaaaaaaaaaaaaa
-> cfsd_bbbbbbbbbbbbbbbbb secretBbbbbbbbbbbbbbbbbbbb
+> cfsd_aaaaaaaaaaaaaaaaa----secretAaaaaaaaaaaaaaaaaaaa
+> cfsd_bbbbbbbbbbbbbbbbb----secretBbbbbbbbbbbbbbbbbbbb
 > ```
 >
 > 空行会被忽略;重复条目只处理一次。
@@ -149,8 +149,8 @@ $env:DIGITALPLAT_API_KEY = "dp_live_xxx"
 # PowerShell(多账号:反引号 `n 表示换行,一行一个 Key)
 $env:DIGITALPLAT_API_KEY = "dp_live_aaa`ndp_live_bbb"
 
-# DNSHE(一行一个账号:API-Key 空格 API-Secret)
-$env:DNSHE_API_KEY = "cfsd_xxx yyyy"
+# DNSHE(一行一个账号:API-Key----API-Secret)
+$env:DNSHE_API_KEY = "cfsd_xxx----yyyy"
 
 node scripts/list-domains.mjs            # 只看检查表格
 node scripts/renew.mjs --dry-run         # 预览:哪些会进入续期窗口(不发续期请求)
@@ -162,7 +162,7 @@ node scripts/renew.mjs --json            # 附带打印接口完整原始响应(
 # Linux / macOS
 export DIGITALPLAT_API_KEY="dp_live_xxx"                   # 单账号
 export DIGITALPLAT_API_KEY=$'dp_live_aaa\ndp_live_bbb'     # 多账号:一行一个
-export DNSHE_API_KEY="cfsd_xxx yyyy"                       # DNSHE(一行一个账号)
+export DNSHE_API_KEY="cfsd_xxx----yyyy"                    # DNSHE(一行一个账号)
 node scripts/renew.mjs
 ```
 
@@ -194,7 +194,7 @@ node scripts/renew.mjs
 接口未返回到期时间(DNSHE 还会返回 `never_expires=1`)时会显示"永久有效"。
 
 **Q:有多个账号怎么办?**
-DigitalPlat 把每个 Key 各占一行写进 `DIGITALPLAT_API_KEY`;DNSHE 把每个账号写成一行 `cfsd_xxx API-Secret` 放进 `DNSHE_API_KEY`。脚本逐账号拉取域名,并用**该域名所属账号的凭据**续期。某个凭据失效只会把该账号标记为异常,其他账号照常续期(整体退出码仍为 1,便于邮件通知)。
+DigitalPlat 把每个 Key 各占一行写进 `DIGITALPLAT_API_KEY`;DNSHE 把每个账号写成一行 `cfsd_xxx----API-Secret` 放进 `DNSHE_API_KEY`。脚本逐账号拉取域名,并用**该域名所属账号的凭据**续期。某个凭据失效只会把该账号标记为异常,其他账号照常续期(整体退出码仍为 1,便于邮件通知)。
 
 **Q:两个平台都必须配置吗?**
 不必。只配置一个平台就只处理那一个;两个都配就一起处理,表格里会多出"平台"列。

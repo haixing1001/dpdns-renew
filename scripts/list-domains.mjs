@@ -45,11 +45,11 @@ const { accounts, errors, warnings } = buildAccounts();
 
 if (errors.length > 0) {
   for (const e of errors) console.error(e);
-  console.error('请检查配置:DigitalPlat 一行一个 Key;DNSHE 一行一个账号,写成 "cfsd_xxx API-Secret"');
+  console.error('请检查配置:DigitalPlat 一行一个 Key;DNSHE 一行一个账号,写成 "cfsd_xxx----API-Secret"');
   process.exit(2);
 }
 if (accounts.length === 0) {
-  console.error('未配置任何平台的 API 凭据(DIGITALPLAT_API_KEY 或 DNSHE_API_KEY="cfsd_xxx API-Secret")');
+  console.error('未配置任何平台的 API 凭据(DIGITALPLAT_API_KEY 或 DNSHE_API_KEY="cfsd_xxx----API-Secret")');
   process.exit(2);
 }
 for (const w of warnings) console.warn(w);

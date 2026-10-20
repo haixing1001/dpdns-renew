@@ -4,14 +4,14 @@
 // 认证: 请求头 X-API-Key + X-API-Secret
 // 续期窗口: 到期前 180 天开启,免费(charged_amount=0)
 //
-// 多账号: DNSHE_API_KEY 一行一个账号,写成 "cfsd_xxx API-Secret"(空格/逗号/冒号/竖线分隔)
+// 多账号: DNSHE_API_KEY 一行一个账号,写成 "cfsd_xxx----API-Secret"(空格/逗号/冒号/竖线也兼容)
 //         兼容旧用法:DNSHE_API_SECRET 单独给,按行与 DNSHE_API_KEY 配对
 const BASE_URL = process.env.DNSHE_BASE_URL || 'https://api005.dnshe.com/index.php';
 const PAGE_SIZE = Number.parseInt(process.env.DNSHE_PAGE_SIZE || '200', 10);
 
-/** 把一行拆成 [key, secret]:支持空格/制表符/逗号/冒号/竖线分隔 */
+/** 把一行拆成 [key, secret]:支持 "----" 分隔(推荐),也兼容空格/制表符/逗号/冒号/竖线 */
 function splitPair(line) {
-  const m = /^(\S+)[\s,|:]+(\S+)$/.exec(line);
+  const m = /^(\S+?)[\s,|:=\-]+(\S+)$/.exec(line);
   return m ? [m[1], m[2]] : null;
 }
 
@@ -43,7 +43,7 @@ export function parseDnsheCreds(rawKey, rawSecret = '') {
     } else {
       const pair = splitPair(keyLines[i] || '');
       if (!pair) {
-        invalid.push({ index, reason: '缺少 API Secret(请写成 "cfsd_xxx API-Secret",一行一个账号)' });
+        invalid.push({ index, reason: '缺少 API Secret(请写成 "cfsd_xxx----API-Secret",一行一个账号)' });
         continue;
       }
       [key, secret] = pair;
